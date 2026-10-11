@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>خمّن الرقم</title>
+  <style>
+    body { margin:0; font-family:Arial,sans-serif; background:#0d1117; color:#fff; text-align:center; padding:40px 20px; }
+    h1 { color:#58a6ff; }
+    input { font-size:20px; padding:10px; width:120px; text-align:center; }
+    button { font-size:20px; padding:10px 20px; margin:10px; background:#238636; color:#fff; border:none; border-radius:8px; }
+    #msg { font-size:22px; margin-top:20px; }
+  </style>
+</head>
+<body>
+  <h1>🔢 خمّن الرقم</h1>
+  <p>أنا فكرت في رقم من 1 لـ 100</p>
+  <input id="guess" type="number" min="1" max="100">
+  <br>
+  <button onclick="check()">خمّن</button>
+  <button onclick="restart()">ابدأ من جديد</button>
+  <div id="msg"></div>
+  <script>
+    let secret = Math.floor(Math.random() * 100) + 1;
+    let tries = 0;
+    function check() {
+      const g = Number(document.getElementById("guess").value);
+      const msg = document.getElementById("msg");
+      if (!g) { msg.textContent = "اكتب رقم الأول"; return; }
+      tries++;
+      if (g === secret) msg.textContent = "🎉 صح! خلصتها في " + tries + " محاولة";
+      else if (g < secret) msg.textContent = "⬆️ الرقم أكبر";
+      else msg.textContent = "⬇️ الرقم أصغر";
+    }
+    function restart() {
+      secret = Math.floor(Math.random() * 100) + 1;
+      tries = 0;
+      document.getElementById("msg").textContent = "";
+      document.getElementById("guess").value = "";
+    }
+  </script>
+</body>
+</html>
