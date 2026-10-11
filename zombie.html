@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>نجاة من الزومبي</title>
+<style>
+*{box-sizing:border-box;touch-action:none;-webkit-user-select:none;user-select:none}
+html,body{margin:0;height:100%;background:#12151c;color:#fff;font-family:Arial,sans-serif;overflow:hidden}
+canvas{display:block;width:100%;height:100%}
+#hud{color:#bfe9ff;position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:12px 16px;font-size:18px;pointer-events:none;text-shadow:0 2px 4px #000}
+#bar{position:fixed;left:16px;right:16px;bottom:16px;pointer-events:none;font-size:14px;text-shadow:0 2px 4px #000}
+.track{height:12px;background:#2a3140;border-radius:6px;overflow:hidden;margin-top:6px}
+#hp{height:100%;background:#ef4444;width:100%;box-shadow:0 0 8px #ef4444}
+#xp{height:100%;background:#38bdf8;width:0;box-shadow:0 0 10px #38bdf8}
+#ov{position:fixed;inset:0;background:radial-gradient(circle at 50% 30%,rgba(8,40,70,.92),rgba(0,0,0,.95));display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center}
+#ov.hide{display:none}
+#ov h2{margin:0;font-size:30px;color:#fff;text-shadow:0 0 10px #38bdf8,0 0 30px #38bdf8}
+#fl{position:fixed;inset:0;pointer-events:none;background:#bfe9ff;opacity:0;transition:opacity .25s}
+#ov:not(.hide)::before{content:'⚡';font-size:54px;color:#38bdf8;text-shadow:0 0 22px #38bdf8}
+#ov p{margin:0;color:#94a3b8;font-size:16px}
+#ob{display:flex;flex-direction:column;gap:12px;width:100%;align-items:center}
+button{font-size:20px;padding:14px 28px;border:0;border-radius:14px;background:#0284c7;color:#fff;font-weight:bold;width:100%;max-width:320px;box-shadow:0 0 22px #38bdf8aa;border:1px solid #38bdf8}
+a{color:#94a3b8;font-size:15px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas><div id="fl"></div>
+<div id="hud"><div id="tm">الوقت: 0</div><div id="kl">القتلى: 0</div></div>
+<div id="bar"><div id="lv">المستوى 1</div><div class="track"><div id="xp"></div></div><div class="track"><div id="hp"></div></div></div>
+<div id="ov"><h2 id="oh">نجاة من الزومبي</h2><p id="op">اسحب بصباعك على الشاشة عشان تحرك الشخصية. هي بتضرب أقرب زومبي لوحدها.</p><div id="ob"><button id="go">ابدأ</button></div><a href="index.html">الرجوع للرئيسية</a></div>
+<script>
+(function f(){var e=document.getElementById('fl');if(e){e.style.opacity=.35;setTimeout(function(){e.style.opacity=0},90);setTimeout(function(){e.style.opacity=.2},180);setTimeout(function(){e.style.opacity=0},260)}setTimeout(f,5000+Math.random()*8000)})();
+const cv=document.getElementById('c'),cx=cv.getContext('2d');
+const $=id=>document.getElementById(id);
+let W,H,D=window.devicePixelRatio||1;
+function rs(){W=innerWidth;H=innerHeight;cv.width=W*D;cv.height=H*D;cx.setTransform(D,0,0,D,0,0)}
+rs();addEventListener('resize',rs);
+let p,zs,bs,sps,pts,t,kills,lvl,xp,need,sp,hurt,shake,zid,paused=true,over=true,last=0;
+const SK=['#7a9a6a','#8aa37b','#6f8f66'],SH=['#4b5563','#7f1d1d','#1e3a5f','#57534e'];
+const ups=[
+ {t:'ضرب أسرع',f:()=>p.rate*=0.8},
+ {t:'حركة أسرع',f:()=>p.spd*=1.12},
+ {t:'صحة +30',f:()=>{p.max+=30;p.hp=Math.min(p.max,p.hp+30)}},
+ {t:'ضرر أقوى',f:()=>p.dmg+=1},
+ {t:'مدى أبعد',f:()=>p.range*=1.2}
+];
+function init(){
+ p={x:0,y:0,r:14,hp:100,max:100,spd:150,dmg:1,rate:0.6,cd:0,range:240,ang:0,mz:0};
+ zs=[];bs=[];sps=[];pts=[];t=0;kills=0;lvl=1;xp=0;need=6;sp=0;hurt=0;shake=0;zid=0;over=false;paused=false;
+ $('ov').className='hide';last=performance.now();
+}
+let st=null,vx=0,vy=0;
+cv.addEventListener('pointerdown',e=>{st={x:e.clientX,y:e.clientY};vx=vy=0});
+cv.addEventListener('pointermove',e=>{if(!st)return;let dx=e.clientX-st.x,dy=e.clientY-st.y,m=Math.hypot(dx,dy);if(m>0){let k=Math.min(m,60)/60;vx=dx/m*k;vy=dy/m*k}});
+const end=()=>{st=null;vx=vy=0};
+cv.addEventListener('pointerup',end);cv.addEventListener('pointercancel',end);
+const keys={};
+addEventListener('keydown',e=>keys[e.key.toLowerCase()]=1);
+addEventListener('keyup',e=>keys[e.key.toLowerCase()]=0);
+function spawn(){
+ const a=Math.random()*Math.PI*2,d=Math.max(W,H)/2+40;
+ zs.push({id:zid++,x:p.x+Math.cos(a)*d,y:p.y+Math.sin(a)*d,r:12,hp:2+Math.floor(t/30),spd:45+Math.min(t*0.4,60),sk:SK[zid%3],sh:SH[zid%4]});
+}
+function blood(x,y,n){for(let i=0;i<n;i++){const a=Math.random()*7,s=40+Math.random()*90;pts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:0.4+Math.random()*0.3})}}
+function levelUp(){
+ paused=true;$('ov').className='';$('oh').textContent='مستوى '+lvl;$('op').textContent='اختار قدرة جديدة';
+ const ob=$('ob');ob.innerHTML='';
+ ups.slice().sort(()=>Math.random()-.5).slice(0,3).forEach(u=>{
+  const b=document.createElement('button');b.textContent=u.t;
+  b.onclick=()=>{u.f();paused=false;$('ov').className='hide';last=performance.now()};
+  ob.appendChild(b);
+ });
+}
+function die(){
+ over=true;$('ov').className='';$('oh').textContent='خسرت';
+ $('op').textContent='عشت '+Math.floor(t)+' ثانية وقتلت '+kills+' زومبي';
+ const ob=$('ob');ob.innerHTML='';
+ const b=document.createElement('button');b.textContent='العب تاني';b.onclick=init;ob.appendChild(b);
+}
+function update(dt){
+ t+=dt;
+ let mx=vx+((keys['d']||keys['arrowright'])?1:0)-((keys['a']||keys['arrowleft'])?1:0);
+ let my=vy+((keys['s']||keys['arrowdown'])?1:0)-((keys['w']||keys['arrowup'])?1:0);
+ let m=Math.hypot(mx,my);if(m>1){mx/=m;my/=m}
+ if(m>0.1)p.ang=Math.atan2(my,mx);
+ p.x+=mx*p.spd*dt;p.y+=my*p.spd*dt;
+ sp-=dt;if(sp<=0){spawn();sp=Math.max(0.25,1.1-t*0.008)}
+ for(const z of zs){
+  const dx=p.x-z.x,dy=p.y-z.y,d=Math.hypot(dx,dy)||1;
+  z.x+=dx/d*z.spd*dt;z.y+=dy/d*z.spd*dt;
+  if(d<p.r+z.r){p.hp-=20*dt;hurt=0.3;shake=0.25}
+ }
+ p.cd-=dt;p.mz-=dt;hurt=Math.max(0,hurt-dt);shake=Math.max(0,shake-dt);
+ if(p.cd<=0){
+  let best=null,bd=p.range;
+  for(const z of zs){const d=Math.hypot(z.x-p.x,z.y-p.y);if(d<bd){bd=d;best=z}}
+  if(best){
+   const dx=best.x-p.x,dy=best.y-p.y,d=Math.hypot(dx,dy)||1;
+   p.ang=Math.atan2(dy,dx);p.mz=0.07;
+   bs.push({x:p.x+dx/d*30,y:p.y+dy/d*30,vx:dx/d*520,vy:dy/d*520,life:0.8});p.cd=p.rate;
+  }
+ }
+ for(const b of bs){
+  b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt;
+  for(const z of zs){
+   if(z.hp>0&&Math.hypot(z.x-b.x,z.y-b.y)<z.r+4){z.hp-=p.dmg;b.life=0;blood(b.x,b.y,4);z.x+=b.vx*dt*0.15;z.y+=b.vy*dt*0.15;break}
+  }
+ }
+ bs=bs.filter(b=>b.life>0);
+ const alive=[];
+ for(const z of zs){if(z.hp>0)alive.push(z);else{kills++;xp++;blood(z.x,z.y,10);sps.push({x:z.x,y:z.y,r:10+Math.random()*8,life:6})}}
+ zs=alive;
+ for(const q of pts){q.x+=q.vx*dt;q.y+=q.vy*dt;q.vx*=0.9;q.vy*=0.9;q.life-=dt}
+ pts=pts.filter(q=>q.life>0);
+ for(const s of sps)s.life-=dt;
+ sps=sps.filter(s=>s.life>0);
+ if(xp>=need){xp=0;lvl++;need=Math.ceil(need*1.4);levelUp()}
+ if(p.hp<=0){p.hp=0;die()}
+ $('tm').textContent='الوقت: '+Math.floor(t);
+ $('kl').textContent='القتلى: '+kills;
+ $('lv').textContent='المستوى '+lvl;
+ $('xp').style.width=(xp/need*100)+'%';
+ $('hp').style.width=(p.hp/p.max*100)+'%';
+}
+function shadow(x,y,r){cx.fillStyle='rgba(0,0,0,.35)';cx.beginPath();cx.ellipse(x,y+r*.6,r,r*.55,0,0,7);cx.fill()}
+function drawZ(z,ox,oy){
+ const x=z.x+ox,y=z.y+oy,a=Math.atan2(p.y-z.y,p.x-z.x),w=Math.sin(t*8+z.id)*0.25;
+ shadow(x,y,z.r);
+ cx.save();cx.translate(x,y);cx.rotate(a);
+ cx.fillStyle=z.sk;
+ cx.fillRect(4,-13+w*6,17,5);cx.fillRect(4,8-w*6,17,5);
+ cx.fillStyle=z.sh;cx.beginPath();cx.ellipse(0,0,10,14,0,0,7);cx.fill();
+ cx.fillStyle=z.sk;cx.beginPath();cx.arc(3,0,8,0,7);cx.fill();
+ cx.fillStyle='#ef4444';cx.fillRect(7,-4,2,2);cx.fillRect(7,2,2,2);
+ cx.restore();
+}
+function drawP(){
+ const x=W/2,y=H/2;
+ shadow(x,y,p.r);
+ cx.save();cx.translate(x,y);cx.rotate(p.ang);
+ cx.fillStyle='#d6b08a';cx.fillRect(4,-10,14,5);cx.fillRect(4,5,14,5);
+ cx.fillStyle='#1f2937';cx.fillRect(8,3,26,6);
+ cx.fillStyle='#6b7280';cx.fillRect(28,4,8,4);
+ cx.fillStyle='#334155';cx.beginPath();cx.ellipse(0,0,10,15,0,0,7);cx.fill();
+ cx.fillStyle='#d6b08a';cx.beginPath();cx.arc(2,0,8,0,7);cx.fill();
+ cx.fillStyle='#111827';cx.beginPath();cx.arc(0,0,8.5,1.6,4.7);cx.fill();
+ if(p.mz>0){cx.fillStyle='#fde047';cx.beginPath();cx.moveTo(36,6);cx.lineTo(50,1);cx.lineTo(50,11);cx.closePath();cx.fill()}
+ cx.restore();
+}
+function draw(){
+ const sx0=shake>0?(Math.random()-.5)*shake*14:0,sy0=shake>0?(Math.random()-.5)*shake*14:0;
+ cx.fillStyle='#22252c';cx.fillRect(0,0,W,H);
+ const ox=W/2-p.x+sx0,oy=H/2-p.y+sy0;
+ const g=60,ix0=Math.floor((p.x-W/2)/g)-1,iy0=Math.floor((p.y-H/2)/g)-1;
+ for(let ix=ix0;ix<ix0+W/g+3;ix++)for(let iy=iy0;iy<iy0+H/g+3;iy++){
+  const h=(((ix*73856093)^(iy*19349663))>>>0)%100,x=ix*g+ox,y=iy*g+oy;
+  if(h<9){cx.fillStyle='#181a20';cx.fillRect(x+(h*5)%40,y+(h*7)%40,3+h%5,2)}
+  else if(h>94){cx.fillStyle='#2b2f38';cx.fillRect(x+(h*3)%40,y+(h*11)%40,6,4)}
+  if(ix%7===0&&iy%2===0){cx.fillStyle='rgba(201,168,58,.55)';cx.fillRect(x,y,5,32)}
+ }
+ for(const s of sps){cx.fillStyle='rgba(91,15,20,'+Math.min(0.7,s.life/6)+')';cx.beginPath();cx.ellipse(s.x+ox,s.y+oy,s.r,s.r*.7,0,0,7);cx.fill()}
+ for(const z of zs)drawZ(z,ox,oy);
+ cx.strokeStyle='#fde047';cx.lineWidth=2;
+ for(const b of bs){cx.beginPath();cx.moveTo(b.x+ox,b.y+oy);cx.lineTo(b.x-b.vx*0.03+ox,b.y-b.vy*0.03+oy);cx.stroke()}
+ cx.fillStyle='#b91c1c';
+ for(const q of pts)cx.fillRect(q.x+ox,q.y+oy,3,3);
+ drawP();
+ if(hurt>0){cx.fillStyle='rgba(239,68,68,'+hurt*0.5+')';cx.fillRect(0,0,W,H)}
+}
+function loop(now){
+ const dt=Math.min(0.05,(now-last)/1000);last=now;
+ if(p&&!paused&&!over)update(dt);
+ if(p)draw();
+ requestAnimationFrame(loop);
+}
+$('go').onclick=init;
+requestAnimationFrame(loop);
+</script>
+</body>
+  </html>
