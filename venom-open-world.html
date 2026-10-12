@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>VENOM OPEN WORLD</title>
+
+<style>
+* {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    margin: 0;
+    overflow: hidden;
+    background: #10151b;
+    font-family: Arial, sans-serif;
+    color: white;
+}
+
+canvas {
+    display: block;
+}
+
+#title {
+    position: fixed;
+    top: 12px;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    font-size: 22px;
+    font-weight: bold;
+    color: #00ff99;
+    text-shadow: 0 0 12px #00ff99;
+    pointer-events: none;
+    z-index: 2;
+}
+
+#help {
+    position: fixed;
+    top: 48px;
+    left: 10px;
+    background: #0009;
+    padding: 8px;
+    border-radius: 8px;
+    font-size: 12px;
+    z-index: 2;
+    pointer-events: none;
+}
+
+#controls {
+    position: fixed;
+    bottom: 20px;
+    left: 15px;
+    display: grid;
+    grid-template-columns: repeat(3, 55px);
+    grid-template-rows: repeat(2, 55px);
+    gap: 5px;
+    z-index: 5;
+}
+
+button {
+    border: 1px solid #00ff99;
+    background: #101b20dd;
+    color: white;
+    border-radius: 12px;
+    font-size: 20px;
+    font-weight: bold;
+    touch-action: none;
+}
+
+button:active {
+    background: #00a866;
+}
+
+#up { grid-column: 2; grid-row: 1; }
+#left { grid-column: 1; grid-row: 2; }
+#down { grid-column: 2; grid-row: 2; }
+#right { grid-column: 3; grid-row: 2; }
+
+#actions {
+    position: fixed;
+    bottom: 25px;
+    right: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 5;
+}
+
+#actions button {
+    width: 100px;
+    min-height: 48px;
+    font-size: 14px;
+}
+
+#message {
+    position: fixed;
+    top: 85px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #00ff99;
+    font-size: 14px;
+    text-align: center;
+    z-index: 3;
+    pointer-events: none;
+}
+</style>
+</head>
+
+<body>
+
+<div id="title">VENOM OPEN WORLD</div>
+
+<div id="help">
+مدينة مفتوحة 🏙️<br>
+اتحرك واستكشف المدينة
+</div>
+
+<div id="message">استكشف المدينة!</div>
+
+<div id="controls">
+    <button id="up">▲</button>
+    <button id="left">◀</button>
+    <button id="down">▼</button>
+    <button id="right">▶</button>
+</div>
+
+<div id="actions">
+    <button id="carBtn">🚗 ركوب السيارة</button>
+    <button id="shootBtn">🎯 إطلاق النار</button>
+</div>
+
+<script type="module">
+import * as THREE from
+'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x91b9d5);
+scene.fog = new THREE.Fog(0x91b9d5, 70, 260);
+
+const camera = new THREE.PerspectiveCamera(
+    70, window.innerWidth / window.innerHeight, 0.1, 500
+);
+
+const renderer = new THREE.WebGLRenderer({
+    antialias: false,
+    powerPreference: "low-power"
+});
+
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+renderer.shadowMap.enabled = false;
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x555566, 2));
+
+const sun = new THREE.DirectionalLight(0xffffff, 2);
+sun.position.set(30, 70, 20);
+scene.add(sun);
+
+const mat = color => new THREE.MeshLambertMaterial({color});
+
+const groundMat = mat(0x435047);
+const roadMat = mat(0x30343a);
+const lineMat = mat(0xe6d58b);
+
+function box(w, h, d, color, x, y, z) {
+    const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(w, h, d),
+        mat(color)
+    );
+    mesh.position.set(x, y, z);
+    scene.add(mesh);
+    return mesh;
+}
+
+// الأرض
+box(500, 1, 500, 0x435047, 0, -0.6, 0);
+
+// الشوارع
+for (let i = -4; i <= 4; i++) {
+    const p = i * 28;
+
+    box(9, 0.1, 500, 0x30343a, p, -0.03, 0);
+    box(500, 0.1, 9, 0x30343a, 0, -0.02, p);
+
+    for (let n = -9; n <= 9; n++) {
+        box(0.16, 0.03, 3, 0xe6d58b,
+            p, 0.04, n * 25);
+
+        box(3, 0.03, 0.16, 0xe6d58b,
+            n * 25, 0.04, p);
+    }
+}
+
+// مباني المدينة
+const buildingColors = [
+    0xaaa9a3, 0x8b969f, 0xc0b29e,
+    0x777d88, 0xb5b8b8, 0x8eaaa5
+];
+
+for (let x = -5; x <= 5; x++) {
+    for (let z = -5; z <= 5; z++) {
+        if (Math.abs(x) < 1 && Math.abs(z) < 1) continue;
+
+        const bx = x * 28 + (x < 0 ? 9 : -9);
+        const bz = z * 28 + (z < 0 ? 9 : -9);
+
+        const width = 8 + Math.random() * 5;
+        const depth = 8 + Math.random() * 5;
+        const height = 8 + Math.random() * 27;
+
+        const color = buildingColors[
+            Math.floor(Math.random() * buildingColors.length)
+        ];
+
+        box(width, height, depth, color,
+            bx, height / 2, bz);
+
+        // نوافذ بسيطة على واجهة المبنى
+        for (let wy = 3; wy < height - 1; wy += 4) {
+            for (let wx = -width / 2 + 1; wx < width / 2; wx += 2.5) {
+                box(0.8, 1.1, 0.08, 0x5b9ba8,
+                    bx + wx, wy, bz + depth / 2 + 0.05);
+            }
+        }
+    }
+}
+
+// شخصية اللاعب
+const player = new THREE.Group();
+scene.add(player);
+
+const body = new THREE.Mesh(
+    new THREE.BoxGeometry(0.8, 1.25, 0.45),
+    mat(0x171b24)
+);
+body.position.y = 1.05;
+player.add(body);
+
+const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.36, 8, 6),
+    mat(0x16191f)
+);
+head.position.y = 1.9;
+player.add(head);
+
+// قناع الشخصية
+const mask = new THREE.Mesh(
+    new THREE.BoxGeometry(0.48, 0.19, 0.12),
+    mat(0x00ff99)
+);
+mask.position.set(0, 1.91, 0.29);
+player.add(mask);
+
+player.position.set(0, 0, 3);
+
+// السيارة
+const car = new THREE.Group();
+scene.add(car);
+
+const carBody = new THREE.Mesh(
+    new THREE.BoxGeometry(2.3, 0.8, 4),
+    mat(0x08a85b)
+);
+carBody.position.y = 0.8;
+car.add(carBody);
+
+const roof = new THREE.Mesh(
+    new THREE.BoxGeometry(1.7, 0.65, 1.8),
+    mat(0x18252b)
+);
+roof.position.set(0, 1.48, -0.2);
+car.add(roof);
+
+for (const x of [-1.05, 1.05]) {
+    for (const z of [-1.3, 1.3]) {
+        const wheel = new THREE.Mesh(
+            new THREE.BoxGeometry(0.35, 0.55, 0.7),
+            mat(0x111111)
+        );
+        wheel.position.set(x, 0.42, z);
+        car.add(wheel);
+    }
+}
+
+car.position.set(0, 0, -4);
+
+// أهداف للتجربة
+const targets = [];
+
+for (let i = 0; i < 7; i++) {
+    const target = new THREE.Mesh(
+        new THREE.BoxGeometry(0.8, 1.8, 0.8),
+        mat(0xa82c37)
+    );
+
+    target.position.set(
+        -18 + Math.random() * 36,
+        0.9,
+        -30 - Math.random() * 30
+    );
+
+    scene.add(target);
+    targets.push(target);
+}
+
+const keys = {
+    up: false,
+    down: false,
+    left: false,
+    right: false
+};
+
+function bindButton(id, key) {
+    const button = document.getElementById(id);
+
+    button.addEventListener("pointerdown", e => {
+        e.preventDefault();
+        keys[key] = true;
+    });
+
+    for (const eventName of ["pointerup", "pointercancel", "pointerleave"]) {
+        button.addEventListener(eventName, () => {
+            keys[key] = false;
+        });
+    }
+}
+
+bindButton("up", "up");
+bindButton("down", "down");
+bindButton("left", "left");
+bindButton("right", "right");
+
+window.addEventListener("keydown", e => {
+    if (e.key === "w" || e.key === "ArrowUp") keys.up = true;
+    if (e.key === "s" || e.key === "ArrowDown") keys.down = true;
+    if (e.key === "a" || e.key === "ArrowLeft") keys.left = true;
+    if (e.key === "d" || e.key === "ArrowRight") keys.right = true;
+});
+
+window.addEventListener("keyup", e => {
+    if (e.key === "w" || e.key === "ArrowUp") keys.up = false;
+    if (e.key === "s" || e.key === "ArrowDown") keys.down = false;
+    if (e.key === "a" || e.key === "ArrowLeft") keys.left = false;
+    if (e.key === "d" || e.key === "ArrowRight") keys.right = false;
+});
+
+let inCar = false;
+let carSpeed = 0;
+let carAngle = 0;
+
+const message = document.getElementById("message");
+
+document.getElementById("carBtn").addEventListener("click", () => {
+    const distance = player.position.distanceTo(car.position);
+
+    if (!inCar && distance < 5) {
+        inCar = true;
+        player.visible = false;
+        message.textContent = "ركبت العربية! دوس على الأسهم للتحرك 🚗";
+        document.getElementById("carBtn").textContent = "🚶 النزول من السيارة";
+    } else if (inCar) {
+        inCar = false;
+        player.visible = true;
+        player.position.set(
+            car.position.x + 2.5,
+            0,
+            car.position.z
+        );
+        message.textContent = "نزلت من العربية!";
+        document.getElementById("carBtn").textContent = "🚗 ركوب السيارة";
+    } else {
+        message.textContent = "قرّب من العربية الأول!";
+    }
+});
+
+const raycaster = new THREE.Raycaster();
+
+document.getElementById("shootBtn").addEventListener("click", () => {
+    raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+
+    const hits = raycaster.intersectObjects(targets);
+
+    if (hits.length && hits[0].distance < 35) {
+        const target = hits[0].object;
+        scene.remove(target);
+        targets.splice(targets.indexOf(target), 1);
+        message.textContent = "أصبت الهدف! 🎯";
+    } else {
+        message.textContent = "مفيش هدف قدامك!";
+    }
+});
+
+const direction = new THREE.Vector3();
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    if (inCar) {
+        if (keys.up) carSpeed = Math.min(carSpeed + 0.008, 0.22);
+        else if (keys.down) carSpeed = Math.max(carSpeed - 0.012, -0.12);
+        else carSpeed *= 0.96;
+
+        if (keys.left) carAngle += 0.035;
+        if (keys.right) carAngle -= 0.035;
+
+        car.rotation.y = carAngle;
+
+        car.position.x += Math.sin(carAngle) * carSpeed;
+        car.position.z += Math.cos(carAngle) * carSpeed;
+
+        // حدود بسيطة للمدينة
+        car.position.x = THREE.MathUtils.clamp(car.position.x, -130, 130);
+        car.position.z = THREE.MathUtils.clamp(car.position.z, -130, 130);
+
+        camera.position.set(
+            car.position.x - Math.sin(carAngle) * 8,
+            5.5,
+            car.position.z + Math.cos(carAngle) * 8
+        );
+
+        direction.set(
+            car.position.x,
+            1,
+            car.position.z
+        );
+        camera.lookAt(direction);
+
+    } else {
+        const moveSpeed = 0.14;
+
+        if (keys.left) player.rotation.y += 0.045;
+        if (keys.right) player.rotation.y -= 0.045;
+
+        let movement = 0;
+        if (keys.up) movement += moveSpeed;
+        if (keys.down) movement -= moveSpeed;
+
+        player.position.x -= Math.sin(player.rotation.y) * movement;
+        player.position.z -= Math.cos(player.rotation.y) * movement;
+
+        player.position.x = THREE.MathUtils.clamp(player.position.x, -130, 130);
+        player.position.z = THREE.MathUtils.clamp(player.position.z, -130, 130);
+
+        camera.position.set(
+            player.position.x,
+            4,
+            player.position.z + 7
+        );
+
+        direction.set(
+            player.position.x,
+            1.3,
+            player.position.z - 2
+        );
+
+        camera.lookAt(direction);
+    }
+
+    renderer.render(scene, camera);
+}
+
+window.addEventListener("resize", () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+animate();
+</script>
+
+</body>
+      </html>
